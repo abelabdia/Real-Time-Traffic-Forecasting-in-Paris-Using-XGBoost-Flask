@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prédiction Trafic Paris — Arc 1727 & 6670</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Google font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --muted: #9aa4b2;
+      --accent1:#6c7bff;
+      --accent2:#8b5cf6;
+      --glass: rgba(255,255,255,0.04);
+      --glass-2: rgba(255,255,255,0.03);
+      --success:#24b47e;
+      --warning:#ffb020;
+      --danger:#ff6b6b;
+      --radius:14px;
+      --glass-border: rgba(255,255,255,0.04);
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#07101b 0%, #0b1830 60%);
+      color: #e6eef8;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:28px;
+    }
+
+    /* Wrapper */
+    .app {
+      max-width:1300px;
+      margin:0 auto;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:20px;
+    }
+
+    /* Header */
+    .topbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+      border-radius:var(--radius);
+      padding:18px 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 6px 24px rgba(2,6,23,0.6), inset 0 -1px 0 rgba(255,255,255,0.02);
+      backdrop-filter: blur(8px) saturate(120%);
+    }
+
+    .brand {
+      display:flex;
+      gap:14px;
+      align-items:center;
+    }
+    .logo {
+      width:48px;height:48px;border-radius:12px;
+      background: linear-gradient(135deg,var(--accent1),var(--accent2));
+      display:flex;align-items:center;justify-content:center;font-weight:800;color:white;
+      box-shadow: 0 6px 18px rgba(99,102,241,0.18);
+      flex-shrink:0;
+    }
+    .brand h1{font-size:1.05rem;margin-bottom:2px}
+    .brand p{font-size:0.85rem;color:var(--muted);margin:0}
+
+    /* Info badge */
+    .data-source {
+      display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:999px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.03);
+      color: #dbeafe;
+      font-size:0.9rem;
+    }
+
+    .data-source strong{color:#fff;margin-left:6px;font-weight:600}
+    .data-source .dot { width:10px;height:10px;border-radius:50%;background:#30d158;box-shadow:0 0 6px rgba(48,209,88,0.2) }
+
+    /* Controls card */
+    .controls {
+      display:flex;
+      gap:16px;
+      align-items:center;
+      justify-content:space-between;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      padding:16px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .horizon {
+      display:flex;
+      gap:10px;
+      background:var(--glass);
+      padding:6px;border-radius:10px;
+    }
+    .horizon button{
+      background:transparent;border:0;color:var(--muted);padding:8px 14px;border-radius:8px;font-weight:600;
+      cursor:pointer;transition:all .18s;
+    }
+    .horizon button.active{
+      background:linear-gradient(90deg,var(--accent1),var(--accent2));
+      color:white;box-shadow:0 8px 30px rgba(99,102,241,0.12);
+    }
+
+    .actions { display:flex;gap:12px;align-items:center }
+    .btn {
+      padding:10px 16px;border-radius:10px;border:0;font-weight:700;cursor:pointer;
+      transition: transform .12s ease, box-shadow .12s;
+      display:inline-flex;gap:8px;align-items:center;
+    }
+    .btn.primary {
+      background: linear-gradient(90deg,var(--accent1),var(--accent2));
+      color:white;box-shadow:0 8px 30px rgba(99,102,241,0.12);
+    }
+    .btn.ghost {
+      background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04);
+    }
+    .btn.warn { background: linear-gradient(90deg,#ffb86b,#ff8a65); color:#15211a }
+
+    .btn:active{ transform: translateY(1px) }
+
+    /* layout main */
+    .main {
+      display:grid;
+      grid-template-columns: 1fr 380px;
+      gap:20px;
+      align-items:start;
+    }
+
+    /* Map container */
+    .map-card {
+      height:650px;border-radius:12px;overflow:hidden; border:1px solid rgba(255,255,255,0.03);
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+    }
+    #map { width:100%; height:100%; display:block }
+
+    /* Sidebar */
+    .sidebar {
+      display:flex;flex-direction:column;gap:16px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;padding:14px;border:1px solid rgba(255,255,255,0.03);
+    }
+
+    .legend-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:10px }
+    .legend-item {
+      display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      border:1px solid rgba(255,255,255,0.02);
+    }
+    .legend-swatch { width:36px;height:36px;border-radius:8px;flex-shrink:0;box-shadow:0 6px 18px rgba(2,6,23,0.5) }
+    .sw-fluide{ background: linear-gradient(180deg,#57d27a,#21b573) }
+    .sw-presature{ background: linear-gradient(180deg,#ffd166,#ffb020) }
+    .sw-sature{ background: linear-gradient(180deg,#ffb07a,#ff7b42) }
+    .sw-bloque{ background: linear-gradient(180deg,#ff8a8a,#ff4b4b) }
+
+    .legend-item .meta { font-size:0.9rem;color:var(--muted) }
+    .legend-item .meta b { color:#fff }
+
+    /* Result cards */
+    .result {
+      display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;
+    }
+    .result .title { font-size:0.85rem;color:var(--muted);font-weight:600 }
+    .status-badge {
+      display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-weight:700;font-size:0.85rem;
+    }
+    .status-fluide{ background: linear-gradient(90deg,#66e07a,#1fa65a); color:#04210f }
+    .status-presature{ background: linear-gradient(90deg,#ffe07a,#ffb020); color:#2b1600 }
+    .status-sature{ background: linear-gradient(90deg,#ffb07a,#ff7b42); color:#2b1100 }
+    .status-bloque{ background: linear-gradient(90deg,#ff8a8a,#ff4b4b); color:#3a0606 }
+
+    .pred-val { font-size:2.2rem;font-weight:800;color:var(--accent1) }
+    .pred-time { color:var(--muted); font-size:0.9rem }
+
+    /* Message box */
+    .message-box { position:relative; min-height:44px; }
+    .msg {
+      padding:12px;border-radius:10px;font-weight:600;font-size:0.95rem;
+      animation:fadeSlide .32s ease;
+    }
+    .msg.success{ background: rgba(32,196,143,0.12);border:1px solid rgba(32,196,143,0.14); color:#d6fff0 }
+    .msg.warn{ background: rgba(255,176,32,0.08);border:1px solid rgba(255,176,32,0.12);color:#fff6ea }
+    .msg.danger{ background: rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.12);color:#ffdad6 }
+
+    @keyframes fadeSlide {
+      from{opacity:0; transform:translateY(6px)} to{opacity:1;transform:none}
+    }
+
+    /* small screens */
+    @media (max-width: 1000px) {
+      .main { grid-template-columns: 1fr; }
+      .map-card{ height:520px }
+    }
+    @media (max-width:560px){
+      body{padding:16px}
+      .topbar{flex-direction:column;gap:12px}
+      .brand h1{font-size:0.98rem}
+    }
+
+    /* Popup tweaks for leaflet (small but nicer) */
+    .leaflet-popup-content-wrapper{ border-radius:10px; box-shadow: 0 8px 30px rgba(2,6,23,0.6) }
+    .popup-content h4{ margin:0 0 6px 0; font-weight:800 }
+    .popup-content .value{ font-weight:800; font-size:1.15rem; margin-top:6px }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">PT</div>
+        <div>
+          <h1>Prédiction Trafic Paris</h1>
+          <p>Avenue Porte d'Aubervilliers — Arc 1727 & 6670</p>
+        </div>
+      </div>
+
+      <!-- data source badge -->
+      <div class="data-source" id="dsBadge">
+        <span class="dot" aria-hidden></span>
+        <span style="font-size:0.92rem">Données en temps réel</span>
+        <strong>Paris Open Data</strong>
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls card">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="font-size:0.95rem;color:var(--muted);font-weight:700">Horizon</div>
+        <div class="horizon" role="tablist" aria-label="Choisir horizon">
+          <button class="horizon-btn active" data-horizon="now">NOW</button>
+          <button class="horizon-btn" data-horizon="1h">1h</button>
+          <button class="horizon-btn" data-horizon="2h">2h</button>
+          <button class="horizon-btn" data-horizon="3h">3h</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="message-box" id="messageBox"></div>
+        <button id="predictBtn" class="btn primary" style="display:none;">
+          <!-- small SVG icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="opacity:0.9"><path d="M3 12h6l3 8 4-16 2 10h6" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Lancer la prédiction
+        </button>
+        <button id="refreshBtn" class="btn warn">
+          🔄 Rafraîchir
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <!-- MAP --> 
+      <div class="map-card card">
+        <div id="map"></div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-weight:800">📊 Niveaux de congestion</div>
+            <div style="font-size:0.9rem;color:var(--muted)">% occupation</div>
+          </div>
+          <div class="legend-grid">
+            <div class="legend-item">
+              <div class="legend-swatch sw-fluide"></div>
+              <div class="meta"><b>Fluide</b><div style="color:var(--muted);font-size:0.85rem">0–17%</div></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch sw-presature"></div>
+              <div class="meta"><b>Pré-saturé</b><div style="color:var(--muted);font-size:0.85rem">18–31%</div></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch sw-sature"></div>
+              <div class="meta"><b>Saturé</b><div style="color:var(--muted);font-size:0.85rem">32–50%</div></div>
+            </div>
+            <div class="legend-item">
+              <div class="legend-swatch sw-bloque"></div>
+              <div class="meta"><b>Bloqué</b><div style="color:var(--muted);font-size:0.85rem">&gt;50%</div></div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px; border-top:1px dashed rgba(255,255,255,0.02); padding-top:12px; display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:0.9rem;color:var(--muted)">Dernière mise à jour</div>
+            <div id="lastUpdate" style="font-weight:700">En attente...</div>
+          </div>
+        </div>
+
+        <!-- Arc 1727 -->
+        <div id="card1727" class="card result" style="display:none">
+          <div class="title">Arc 1727</div>
+          <div id="status1727" class="status-badge status-fluide">—</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="pred-val"><span id="pred1727">-</span> <span style="font-size:0.9rem;color:var(--muted)">% occupation</span></div>
+              <div class="pred-time" id="time1727"></div>
+            </div>
+            <div style="width:64px;height:64px;border-radius:12px;background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(255,255,255,0.00));display:flex;align-items:center;justify-content:center">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M3 12h18" stroke="#fff" stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Arc 6670 -->
+        <div id="card6670" class="card result" style="display:none">
+          <div class="title">Arc 6670</div>
+          <div id="status6670" class="status-badge status-fluide">—</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="pred-val"><span id="pred6670">-</span> <span style="font-size:0.9rem;color:var(--muted)">% occupation</span></div>
+              <div class="pred-time" id="time6670"></div>
+            </div>
+            <div style="width:64px;height:64px;border-radius:12px;background:linear-gradient(90deg,rgba(255,255,255,0.02),rgba(255,255,255,0.00));display:flex;align-items:center;justify-content:center">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M3 12h18" stroke="#fff" stroke-opacity="0.8" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    /* === Logique JS conservée et légèrement améliorée pour la nouvelle UI === */
+
+    let selectedHorizon = 'now';
+    let map, arc1727Layer, arc6670Layer;
+
+    const arc6670Coords = [
+      [48.895308, 2.371864],
+      [48.896395, 2.370569],
+      [48.898655, 2.370494]
+    ];
+    const arc1727Coords = [
+      [48.898655, 2.370494],
+      [48.901456, 2.370184]
+    ];
+
+    function getTrafficLevel(prediction){
+      if (prediction <= 17) return { level:'fluide', label:'🟢 Fluide', color:'#21b573', statusClass:'status-fluide' };
+      if (prediction <= 31) return { level:'pre-sature', label:'🟡 Pré-saturé', color:'#ffb020', statusClass:'status-presature' };
+      if (prediction <= 50) return { level:'sature', label:'🟠 Saturé', color:'#ff7b42', statusClass:'status-sature' };
+      return { level:'bloque', label:'🔴 Bloqué', color:'#ff4b4b', statusClass:'status-bloque' };
+    }
+
+    function initMap(){
+      map = L.map('map', {zoomControl:true, attributionControl:false}).setView([48.898,2.3705],15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19 }).addTo(map);
+
+      arc6670Layer = L.polyline(arc6670Coords, { color:'#999', weight:8, opacity:0.9, lineCap:'round' }).addTo(map);
+      arc6670Layer.bindPopup('<div class="popup-content"><h4>Arc 6670</h4><p>Direction Nord<br>En attente de prédiction...</p></div>');
+
+      arc1727Layer = L.polyline(arc1727Coords, { color:'#999', weight:8, opacity:0.9, lineCap:'round' }).addTo(map);
+      arc1727Layer.bindPopup('<div class="popup-content"><h4>Arc 1727</h4><p>Direction Nord<br>En attente de prédiction...</p></div>');
+
+      const bounds = L.latLngBounds([...arc6670Coords, ...arc1727Coords]);
+      map.fitBounds(bounds, { padding:[60,60] });
+    }
+
+    function updateArcOnMap(arcId, prediction, nextHour, isNow = false){
+      const traffic = getTrafficLevel(prediction);
+      const layer = arcId === 1727 ? arc1727Layer : arc6670Layer;
+      layer.setStyle({ color: traffic.color, weight: 10, opacity: 0.95 });
+
+      const labelText = isNow ? 'État actuel' : 'Prévision';
+      const popupContent = `
+        <div class="popup-content">
+          <h4>Arc ${arcId}</h4>
+          <div style="font-weight:800;color:${traffic.color}">${traffic.label}</div>
+          <div class="value" style="color:${traffic.color};font-weight:800">${prediction}% occupation</div>
+          <div style="margin-top:6px;color:#8897a8;font-size:0.9rem">${labelText}: ${nextHour}</div>
+        </div>
+      `;
+      layer.bindPopup(popupContent);
+    }
+
+    function updateArcDisplay(arcId, prediction, nextHour, isNow = false){
+      const traffic = getTrafficLevel(prediction);
+      document.getElementById(`card${arcId}`).style.display='block';
+      document.getElementById(`pred${arcId}`).textContent = prediction;
+      
+      // Modifier le texte selon si c'est NOW ou une prédiction
+      if(isNow){
+        document.getElementById(`time${arcId}`).textContent = `État actuel: ${nextHour}`;
+      } else {
+        document.getElementById(`time${arcId}`).textContent = `Prévision: ${nextHour}`;
+      }
+
+      const statusEl = document.getElementById(`status${arcId}`);
+      statusEl.textContent = traffic.label;
+      statusEl.className = `status-badge ${traffic.statusClass}`;
+    }
+
+    // Message helpers
+    function showMessage(type, text, timeout=4000){
+      const box = document.getElementById('messageBox');
+      const el = document.createElement('div');
+      el.className = 'msg ' + (type === 'success' ? 'success' : (type==='warn'?'warn':'danger'));
+      el.textContent = text;
+      box.innerHTML = '';
+      box.appendChild(el);
+      if(timeout) setTimeout(()=> { if(box.contains(el)) box.removeChild(el); }, timeout);
+    }
+
+    // showDataSource as before, adapted to UI
+    function showDataSource(dataSource){
+      if(!dataSource) return;
+      if (dataSource.from_cache){
+        const minutes = Math.floor((dataSource.cache_age_seconds||0)/60);
+        const isOld = (dataSource.cache_age_seconds||0) > 3600;
+        showMessage(isOld ? 'warn' : 'success', dataSource.message || `Données provenant du cache — âge : ${minutes} min`);
+      } else {
+        showMessage('success', dataSource.message || 'Données fraîches récupérées depuis Paris Open Data');
+      }
+      // update badge state (green/orange)
+      const dot = document.querySelector('#dsBadge .dot');
+      if(dataSource.from_cache){ dot.style.background = (dataSource.cache_age_seconds>3600) ? '#ffb020' : '#f5d442'; }
+      else dot.style.background = '#30d158';
+    }
+
+    // Horizon buttons
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest('.horizon button');
+      if(btn){
+        document.querySelectorAll('.horizon button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedHorizon = btn.dataset.horizon;
+        
+        // Afficher/masquer le bouton de prédiction selon l'horizon
+        const predictBtn = document.getElementById('predictBtn');
+        if(selectedHorizon === 'now'){
+          predictBtn.style.display = 'none';
+          
+          // Charger automatiquement les données NOW
+          showMessage('success', 'Chargement de l\'état actuel...');
+          fetch('/api/predict', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({ horizon: 'now' })
+          })
+          .then(r=>r.json())
+          .then(data=>{
+            if(data.success){
+              if(data.data_source) showDataSource(data.data_source);
+              else showMessage('success','✅ État actuel mis à jour');
+              
+              const pred1727 = data.predictions && data.predictions.arc_1727;
+              const pred6670 = data.predictions && data.predictions.arc_6670;
+
+              if(pred1727){
+                updateArcDisplay(1727, pred1727.prediction, pred1727.next_hour, true);
+                updateArcOnMap(1727, pred1727.prediction, pred1727.next_hour, true);
+              }
+              if(pred6670){
+                updateArcDisplay(6670, pred6670.prediction, pred6670.next_hour, true);
+                updateArcOnMap(6670, pred6670.prediction, pred6670.next_hour, true);
+              }
+              document.getElementById('lastUpdate').textContent = new Date().toLocaleString('fr-FR');
+            } else {
+              showMessage('danger','⚠️ Erreur: ' + (data.error||'Impossible de charger les données'));
+            }
+          })
+          .catch(err => { 
+            showMessage('danger','Erreur réseau: ' + (err.message || err));
+          });
+        } else {
+          predictBtn.style.display = 'inline-flex';
+        }
+      }
+    });
+
+    // Predict button
+    document.getElementById('predictBtn').addEventListener('click', async function(){
+      const btn = this;
+      btn.disabled = true;
+      showMessage('success', 'Récupération des données et prédiction...');
+      try {
+        const response = await fetch('/api/predict', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ horizon: selectedHorizon })
+        });
+        const data = await response.json();
+        if(!data.success){
+          showMessage('danger', 'Erreur: ' + (data.error || 'Erreur inconnue'));
+        } else {
+          if(data.data_source) showDataSource(data.data_source);
+          else showMessage('success','✅ Prédiction générée avec succès');
+
+          const pred1727 = data.predictions && data.predictions.arc_1727;
+          const pred6670 = data.predictions && data.predictions.arc_6670;
+          
+          const isNow = selectedHorizon === 'now';
+
+          if(pred1727){
+            updateArcDisplay(1727, pred1727.prediction, pred1727.next_hour, isNow);
+            updateArcOnMap(1727, pred1727.prediction, pred1727.next_hour, isNow);
+          }
+          if(pred6670){
+            updateArcDisplay(6670, pred6670.prediction, pred6670.next_hour, isNow);
+            updateArcOnMap(6670, pred6670.prediction, pred6670.next_hour, isNow);
+          }
+          document.getElementById('lastUpdate').textContent = new Date().toLocaleString('fr-FR');
+        }
+      } catch(err){
+        showMessage('danger','Erreur réseau: ' + (err.message || err));
+      } finally {
+        btn.disabled=false;
+      }
+    });
+
+    // Refresh button
+    document.getElementById('refreshBtn').addEventListener('click', async function(){
+      const btn = this;
+      btn.disabled=true;
+      showMessage('success','Rafraîchissement des données...');
+      try{
+        const resp = await fetch('/api/clear-cache',{ method:'POST' });
+        const data = await resp.json();
+        if(data.success){
+          showMessage('success', '✅ ' + (data.message || 'Cache vidé — prochaine prédiction utilisera données fraîches'));
+        } else {
+          showMessage('danger', 'Erreur: ' + (data.error || 'Problème lors du clear-cache'));
+        }
+      } catch(err){
+        showMessage('danger', 'Erreur: ' + (err.message || err));
+      } finally{
+        btn.disabled=false;
+      }
+    });
+
+    // Status check on load
+    window.addEventListener('load', function(){
+      initMap();
+      
+      // Charger automatiquement l'état NOW au démarrage
+      fetch('/api/predict', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({ horizon: 'now' })
+      })
+      .then(r=>r.json())
+      .then(data=>{
+        if(data.success){
+          if(data.data_source) showDataSource(data.data_source);
+          
+          const pred1727 = data.predictions && data.predictions.arc_1727;
+          const pred6670 = data.predictions && data.predictions.arc_6670;
+
+          if(pred1727){
+            updateArcDisplay(1727, pred1727.prediction, pred1727.next_hour, true);
+            updateArcOnMap(1727, pred1727.prediction, pred1727.next_hour, true);
+          }
+          if(pred6670){
+            updateArcDisplay(6670, pred6670.prediction, pred6670.next_hour, true);
+            updateArcOnMap(6670, pred6670.prediction, pred6670.next_hour, true);
+          }
+          document.getElementById('lastUpdate').textContent = new Date().toLocaleString('fr-FR');
+        } else {
+          showMessage('danger','⚠️ Impossible de charger l\'état actuel: ' + (data.error||'Erreur'));
+        }
+      })
+      .catch(e => { 
+        console.warn('auto-load NOW failed', e);
+        showMessage('warn','Chargement automatique échoué — cliquez sur "Lancer la prédiction"');
+      });
+    });
+  </script>
+</body>
+<footer style="margin-top:20px; padding:15px 0; font-size:32px; color:#666; text-align:center;">
+    <div style="opacity:0.9;">
+        <strong>Technologie utilisée :</strong> XGBoost
+    </div>
+</footer>
+
+</html>
